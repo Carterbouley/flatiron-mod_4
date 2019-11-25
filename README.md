@@ -1,3 +1,1 @@
-# flatiron-mod_4
-.secret
-.ipynb_checkpoints
+# Flatiron Mod 4 - Predicting YouTube views using linear regression
