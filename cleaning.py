@@ -14,76 +14,97 @@ class CleanYoutubeCSV():
 
         
     def add_dummies(self, df):
-        df = df.drop(columns = 'Unnamed: 0')
         
+#         Drop Outliers
+        top_5_index = df.view_count.sort_values(ascending = False).head().index
+        df.drop(labels = top_5_index, inplace = True)
+        
+
+#         Add numerical variables in buckets for season, time of day, and if its a weekend
+
         df['season'] = df['publish_month'].map(lambda x: 
-                                       'winter' if (x > 12) |( x < 3) else 
-                                       ('spring' if (3<x<6) else
-                                       ('summer' if (5<x<9) else 
-                                       'fall')))
-        df.season.astype('category').cat.codes
-        
+                               'winter' if (x == 12) |( x < 3) else 
+                               ('spring' if (3 <= x < 6) else
+                               ('summer' if (6 <= x < 9) else 
+                               'fall')))
         df['day_part'] = df['publish_hour'].map(lambda x: 
-                                       'morning' if (6<=x<12) else 
-                                       ('afternoon' if (12<=x<18) else
-                                       ('evening' if (18<=x<=23) else 
-                                       'overnight')))
-        df.day_part.astype('category').cat.codes
+                               'morning' if (6 <= x <12) else 
+                               ('afternoon' if (12 <= x < 18) else
+                               ('evening' if (18 <= x < 24) else 
+                               'overnight')))
+        df['weekend'] = df['publish_day'].map(lambda x: 1 if x >= 5 else 0)
+        
+#         Catagorize Variables
+                               
+        df.season = df.season.astype('category').cat.codes    
+        df.day_part = df.day_part.astype('category').cat.codes
         
         season_dummies = pd.get_dummies(df.season, prefix ='season')
-        season_dummies.drop(columns = 'season_spring', inplace = True)
-        
-        df = pd.concat([df, season_dummies], axis = 1)
-        
+        season_dummies.drop(columns = 'season_2', inplace = True)
+
         day_part_dummies = pd.get_dummies(df.day_part, prefix = 'day_part')
-        day_part_dummies.drop(columns = 'day_part_morning', inplace = True)
+        day_part_dummies.drop(columns = 'day_part_2', inplace = True)
+
+#         Join databases
+
+        df = pd.concat([df, season_dummies, day_part_dummies], axis = 1)
+        df.drop(columns = ['season', 'day_part'], inplace = True)
         
-        df = pd.concat([df, day_part_dummies], axis = 1)
+#         Add dummy varibales for keywords used in video titles
         
-        indices = []
-        for item in list(enumerate(df.title.str.contains('Unboxing'))):
-            if item[1] == True:
-                indices.append(item[0])
-        for item in list(enumerate(df.title.str.contains('Review'))):
-            if item[1] == True:
-                indices.append(item[0])
-        for item in list(enumerate(df.title.str.contains('Impressions'))):
-            if item[1] == True:
-                indices.append(item[0])
-        indices = list(np.unique(indices))
-        for index in indices:
-            df.loc[index, 'review'] = 1
-        df.review.fillna(0, inplace = True)
-        df.review = df.review.astype('int')
+        df['review'] = df.title.map(lambda x: 1 if ('Review' in x.split(' ')) | 
+                            ('Review!' in x.split(' ')) | 
+                            ('Review:' in x.split(' ')) |
+                            ('Impressions' in x.split(' ')) | 
+                            ('Impressions:' in x.split(' ')) |
+                            ('Impressions!' in x.split(' ')) | 
+                            ('Unboxing' in x.split(' ')) | 
+                            ('Unboxing:' in x.split(' ')) |
+                            ('Unboxing!' in x.split(' ')) 
+                            else 0)
         
-        for item in list(enumerate(df.title.str.contains('Apple'))):
-            if item[1] == True:
-                indices.append(item[0])
-        indices = list(np.unique(indices))
-        for index in indices:
-            df.loc[index, 'apple'] = 1
-        df.apple.fillna(0, inplace = True)
-        df.apple = df.review.astype('int')
+        df['apple'] = df.title.map(lambda x: 1 if ('Apple' in x.split(' ')) | 
+                            ('Apple!' in x.split(' ')) | 
+                            ('iPhone' in x.split(' ')) |
+                            ('iPhone!' in x.split(' ')) | 
+                            ('iPad!:' in x.split(' ')) |
+                            ('iPad' in x.split(' ')) | 
+                            ('iMac' in x.split(' ')) | 
+                            ('Mac' in x.split(' ')) |
+                            ('Macbook' in x.split(' ')) |
+                            ('Macbook:' in x.split(' ')) |
+                            ('AirPods' in x.split(' ')) |
+                            ('Airpods!' in x.split(' ')) 
+                            else 0)
         
-        for item in list(enumerate(df.title.str.contains('Google'))):
-            if item[1] == True:
-                indices.append(item[0])
-        indices = list(np.unique(indices))
-        for index in indices:
-            df.loc[index, 'google'] = 1
-        df.google.fillna(0, inplace = True)
-        df.google = df.review.astype('int')
+        df['google'] = df.title.map(lambda x: 1 if ('Google' in x.split(' ')) else 0)
         
-        for item in list(enumerate(df.title.str.contains('Samsung'))):
-            if item[1] == True:
-                indices.append(item[0])
-        indices = list(np.unique(indices))
-        for index in indices:
-            df.loc[index, 'samsung'] = 1
-        df.samsung.fillna(0, inplace = True)
-        df.samsung = df.review.astype('int')
+        df['samsung'] = df.title.map(lambda x: 1 if ('Samsung' in x.split(' ')) | 
+                            ('Samsung!' in x.split(' ')) | 
+                            ('Galaxy' in x.split(' ')) |
+                            ('Note' in x.split(' '))  
+                            else 0)
+        
+        df['tesla'] = df.title.map(lambda x: 1 if ('Tesla' in x.split(' ')) else 0)
+        
+#         Drop columns which we have previously catagorized or dummied
+        
+        df.drop(columns = ['publish_date', 'title', 'publish_day', 'publish_hour', 'publish_month', 'live'], inplace = True)
         
         return df
-    
-    
-    
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
