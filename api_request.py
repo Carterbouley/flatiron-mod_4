@@ -61,8 +61,8 @@ class CreateYoutubeRequest():
                                'view_count': video.get('statistics', {}).get('viewCount')})
         return pd.DataFrame.from_dict(video_list)
     
-    def transform_video_attributes(self, df):
-        df.dropna(inplace=True)
+    def transform_video_attributes(self, pre_df):
+        df = pre_df.dropna(inplace=True)
         df['duration'] = pd.to_datetime(df['duration'].map(lambda x: isodate.parse_duration(x))).map(lambda x: x.minute).astype('int')
         df['publish_time'] = pd.to_datetime(df['publish_time'])
         time_split = pd.DataFrame(df['publish_time'].map(lambda x: [x.hour, x.weekday(), x.month, x.date()]).to_list(), 
@@ -78,11 +78,11 @@ class CreateYoutubeRequest():
             df[col] = df[col].astype('int')
         df[['title_length', 'description_length', 'tag_count']] = df[['title', 'description', 'tags']].applymap(len)
         df['live'] = df['live'].map(lambda x: 0 if 'none' else 1) 
-        df.drop(columns = ['description', 'publish_time'], inplace = True)
+        df.drop(columns = ['description', 'publish_time', 'tags'], inplace = True)
         return df
 
     def create_channel_df(self, channel_id):
         videos = self.get_channel_videos(channel_id)
-        df = self.get_video_attributes(videos)
-        transformed_df = self.transform_video_attributes(df)
+        pre_df = self.get_video_attributes(videos)
+        transformed_df = self.transform_video_attributes(pre_df)
         return transformed_df  
